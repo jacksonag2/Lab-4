@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>US Population Age by State</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <!-- Sleek modern font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+        background-color: #fafafa;
+      }
+
+      #map {
+        width: 100%;
+        height: 100%;
+      }
+
+      /* --- Sleek Info Box --- */
+      .info {
+        z-index: 1000;
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        padding: 10px 14px;
+        font-size: 14px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(200, 200, 200, 0.4);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+        border-radius: 10px;
+        line-height: 1.5;
+        transition: all 0.3s ease;
+        color: #222;
+      }
+
+      .info h4 {
+        font-size: 15px;
+        font-weight: 600;
+        margin: 0 0 6px;
+        color: #2a2a2a;
+      }
+
+      /* --- Sleek Legend --- */
+      .legend {
+        text-align: left;
+        line-height: 1.4;
+        color: #222;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(200, 200, 200, 0.4);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 13px;
+      }
+
+      .legend i {
+        width: 18px;
+        height: 14px;
+        float: left;
+        margin-right: 8px;
+        opacity: 0.8;
+        border-radius: 3px;
+      }
+    </style>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.4.2/chroma.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-ajax/2.1.0/leaflet.ajax.min.js"></script>
+  </head>
+
+  <body>
+    <div id="map"></div>
+
+    <script>
+      // --- 1. Create the map ---
+      const map = L.map('map').setView([37.8, -96], 5);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+        maxZoom: 18
+      }).addTo(map);
+
+      // --- 2. Color scale ---
+      const grades = [31.9, 33.9, 35.9, 37.9, 39.9, 41.9, 43.9, 45.9];
+      const colors = chroma.scale(['#f7fbff', '#6baed6', '#08306b']).mode('lab').colors(grades.length);
+
+      function getColor(d) {
+        for (let i = 0; i < grades.length - 1; i++) {
+          if (d > grades[i] && d <= grades[i + 1]) return colors[i];
+        }
+        return colors[colors.length - 1];
+      }
+
+      function style(feature) {
+        return {
+          weight: 1.2,
+          opacity: 1,
+          color: '#b2b2b2', // sleek light border
+          dashArray: '2',
+          fillOpacity: 0.75,
+          fillColor: getColor(feature.properties.age)
+        };
+      }
+
+      // --- 3. Info Box ---
+      const info = L.control({ position: 'topright' });
+
+      info.onAdd = function () {
+        this._div = L.DomUtil.create('div', 'info');
+        this.update();
+        return this._div;
+      };
+
+      info.update = function (props) {
+        this._div.innerHTML =
+          '<h4>US Population Age by State</h4>' +
+          (props
+            ? `<b>${props.name}</b><br/>Average Age: <strong>${props.age}</strong>`
+            : 'Hover over a state');
+      };
+
+      info.addTo(map);
+
+      // --- 4. Interactivity ---
+      function highlightFeature(e) {
+        const layer = e.target;
+        layer.setStyle({
+          weight: 2.5,
+          color: '#2a4d7a', // elegant navy border on hover
+          fillColor: '#1c5ee3',
+          fillOpacity: 0.55
+        });
+        layer.bringToFront();
+        info.update(layer.feature.properties);
+      }
+
+      function resetHighlight(e) {
+        geojson.resetStyle(e.target);
+        info.update();
+      }
+
+      function zoomToFeature(e) {
+        map.fitBounds(e.target.getBounds());
+      }
+
+      function onEachFeature(feature, layer) {
+        layer.on({
+          mouseover: highlightFeature,
+          mouseout: resetHighlight,
+          click: zoomToFeature
+        });
+      }
+
+      // --- 5. Load GeoJSON ---
+      const geojson = L.geoJson.ajax("assets/us-states.geojson", {
+        style: style,
+        onEachFeature: onEachFeature
+      }).addTo(map);
+
+      // --- Legend with toggle ---
+  const legend = L.control({ position: 'bottomleft' });
+
+  legend.onAdd = function () {
+    const div = L.DomUtil.create('div', 'legend');
+    div.style.display = 'none'; // initially hidden
+    let labels = [];
+    for (let i = 0; i < grades.length - 1; i++) {
+      labels.push(`<i style="background:${colors[i]}"></i> ${grades[i]} – ${grades[i + 1]}`);
+    }
+    labels.push(`<i style="background:${colors[colors.length - 1]}"></i> ${grades[grades.length - 1]}+`);
+    div.innerHTML = '<strong>Average Age</strong><br>' + labels.join('<br>');
+    return div;
+  };
+
+  legend.addTo(map);
+
+  // --- Toggle Button ---
+  const toggleBtn = L.control({ position: 'bottomleft' });
+  toggleBtn.onAdd = function () {
+    const btn = L.DomUtil.create('button', 'legend-toggle');
+    btn.innerHTML = 'Toggle Legend';
+    btn.style.padding = '6px 10px';
+    btn.style.marginBottom = '8px';
+    btn.style.background = '#fff';
+    btn.style.border = '1px solid #ccc';
+    btn.style.borderRadius = '4px';
+    btn.style.cursor = 'pointer';
+    btn.style.boxShadow = '0 1px 5px rgba(0,0,0,0.3)';
+
+    btn.onclick = function () {
+      const legendDiv = document.querySelector('.legend');
+      if (legendDiv.style.display === 'none') {
+       legendDiv.style.display = 'block';
+      } else {
+        legendDiv.style.display = 'none';
+      }
+    };
+
+    return btn;
+  };
+  toggleBtn.addTo(map);
+
+
+      legend.addTo(map);
+
+      // --- 7. Attribution ---
+      map.attributionControl.addAttribution(
+        'Demographics data &copy; <a href="https://www.census.gov/data/tables/2020/demo/popest/2020-demographic-analysis-tables.html" target="_blank">US Census Bureau</a>'
+      );
+    </script>
+  </body>
+</html>
